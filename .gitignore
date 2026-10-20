@@ -21,3 +21,23 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# env (keep .env.example)
+.env
+.env.*.local
+
+# firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+storage-debug.log*
+ui-debug.log*
+emulator/data/
+
+# never commit service-account keys
+*serviceAccount*.json
+*-adminsdk-*.json
+
+# emulator working files
+emulator/rules/
+emulator/.build/

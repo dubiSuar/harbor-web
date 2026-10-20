@@ -1,46 +1,82 @@
-# Getting Started with Create React App
+# Harbor Admin (web)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+The administrator console for Harbor, the friends-and-family social app whose members use the mobile app (`E:\01 GITHUB REPOS\Harbor`). This web app is **admin only**: members never use it. It is built with Create React App, TypeScript and MUI, in Harbor's design language (Geist, cobalt on zinc, Phosphor icons).
 
-## Available Scripts
+**This is a mock.** There is a mock admin sign-in, and every member, case, number and action runs on synthetic data held in memory. Nothing is read from or written to Firebase. Pages are labelled "Demo data", and the data resets on reload.
 
-In the project directory, you can run:
+## What it does
 
-### `npm start`
+| Page | Route | What an admin does there |
+| --- | --- | --- |
+| Admin Brief | `/` | Reads a ranked, written summary of what needs a decision since they signed off, and acts on each line in place. Acting turns the line into what was done, with Undo, and then it moves to "Resolved overnight". Also on this page: a metrics strip, "Coming up" and upload health per platform. |
+| Reports | `/reports`, `/reports/:id` | Works through reports, appeals, flagged accounts and incidents, most urgent first. Each case shows the reported content, why it was flagged, the member's context, the actions and its history. |
+| Members | `/members`, `/members/:id` | Searches and sorts accounts. On a member's page: suspend or restore, limit posting, reset sign-in, see the cases about them and what admins did. |
+| Health | `/health` | Upload success over the last 24 hours (with the incident marked), daily active members, posts per day, new members and storage, all scoped by one range and platform filter. Every chart has a table view. |
+| Harbor AI & flags | `/ai` | Turns Harbor AI features on or off for everyone and changes feature-flag rollouts. |
+| Audit log | `/audit` | Every admin action, newest first, searchable by admin. The latest change to anything can be undone. |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Find anything with **Ctrl K** (Cmd K on a Mac, or `/`). Every action is confirmed when it affects an account or removes content, logged, and undoable where that's safe.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Run it
 
-### `npm test`
+```bash
+npm install
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+npm start
+```
 
-### `npm run build`
+Open http://localhost:3000 and sign in with the demo admin shown on the sign-in page: `admin@harbor.test` / `harbor-admin-demo`. These are public demo values for the mock, not real credentials.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+| Script | What it does |
+| --- | --- |
+| `npm start` | Dev server |
+| `npm test` | Jest + React Testing Library (`npm run test:ci` runs once) |
+| `npm run build` | Production build into `build/` |
+| `npm run typecheck` | `tsc --noEmit` (strict) |
+| `npm run lint` | ESLint (CRA config + Prettier, `no-explicit-any` as an error) |
+| `npm run format` / `format:check` | Prettier |
+| `npm run deploy` | Build, then `firebase deploy --only hosting` |
+| `npm run emulators`, `npm run sync-check` | The Firestore data-layer checks below |
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Deploy
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+`firebase.json` holds Firebase Hosting only (`public: "build"`, an SPA rewrite to `/index.html`); `.firebaserc` points at `harbor-rn-2026`. Before deploying a mock admin console to the real project, decide whether it should be public at all; the sign-in is not security.
 
-### `npm run eject`
+```bash
+firebase deploy --only hosting
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Making it real (later)
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The mock stands in for decisions that haven't been made:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+- **Who is an admin.** Real sign-in needs Firebase Auth plus an admin role (custom claims or an allow-list). The Firestore rules have no admin role today.
+- **Reports and suspensions.** There is no reports, appeals or suspensions collection in the schema or rules. A real console needs a schema and rules proposal, agreed with the mobile app, first.
+- **Harbor AI switches and flags.** They have no backend on either app yet.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+The repo keeps the **Firestore data layer** a live console will read from: `src/services/backend/firebase.ts` (a function-by-function port of the mobile app's adapter: same documents, transactions, counters, markers and activity ids) with `src/services/auth.ts` and `src/services/firebase/app.ts`. The console doesn't use them yet. They stay verified:
 
-## Learn More
+- `src/__tests__/likeTransaction.test.ts` checks that a like is idempotent and writes the same documents as mobile.
+- `npm run sync-check` drives the adapter against the Firebase Emulator Suite with the mobile repo's rules (copied read-only into `emulator/rules/`) and compares every document with what mobile writes; see `emulator/sync-report.md`. The mobile repo is expected as a sibling folder named `Harbor` (or set `HARBOR_MOBILE_REPO`). The scripts pin `firebase-tools@13.35.1` through `npx` because it runs on Java 17.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Open rules question: `storage.rules` line 32 writes its regex escape as `'\.jpg'`, which the Storage emulator rejects; Firebase documents `'\\.jpg'`. `npm run sync-check:patched` applies that one change to the emulator's copy only.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Project layout
+
+```
+src/
+  App.tsx            routes and the admin guard
+  admin/             the console: AdminStore (state, audit, undo), AdminAuth (mock sign-in),
+                     seed (synthetic data), actions, types, ui/ (Shell, CommandPalette, charts, parts), pages/
+  theme/             tokens.ts and theme.ts (MUI theme and component overrides)
+  components/        Icon (Phosphor), Logo, shared ui (Field, UserAvatar, States, Shimmer)
+  services/          the Firestore data layer kept for the live console (not used by the mock)
+  state/             ToastContext
+PRODUCT.md           who the console is for and what it must do
+```
+
+## Accessibility
+
+WCAG AA contrast, labelled controls, visible focus, full keyboard use (Ctrl K, arrow keys in the command palette and on charts, Esc to close), every chart available as a table, and `prefers-reduced-motion` respected.
